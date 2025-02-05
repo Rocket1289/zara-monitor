@@ -49,31 +49,44 @@ def send_notification(is_available=False):
 
 def check_availability():
     try:
-        api_url = "https://www.zara.com/pl/pl/shop/product-details"
+        # Używamy publicznego API produktowego Zary
+        api_url = "https://www.zara.com/itxrest/2/catalog/store/45109501/40359523/category/0/product/05854004"
         
         headers = {
-            'User-Agent': 'ZaraApp',
-            'Accept': 'application/json',
-            'Accept-Language': 'pl-PL',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15',
+            'Accept': 'application/json,text/plain',
+            'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
             'X-Requested-With': 'XMLHttpRequest',
-            'Referer': URL
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Connection': 'keep-alive'
         }
         
-        params = {
-            'productId': '05854004',
-            'ajax': 'true'
-        }
-        
-        logger.debug(f"Sprawdzam API produktu: {api_url}")
-        response = requests.get(api_url, headers=headers, params=params, timeout=30)
+        logger.debug(f"Sprawdzam nowe API produktu: {api_url}")
+        response = requests.get(
+            api_url, 
+            headers=headers, 
+            timeout=30,
+            allow_redirects=True
+        )
         logger.info(f"Status odpowiedzi: {response.status_code}")
         logger.debug(f"Nagłówki odpowiedzi: {dict(response.headers)}")
         
         if response.status_code == 200:
-            data = response.json()
-            logger.debug(f"Odpowiedź API: {data}")
-            logger.debug(f"Pełna odpowiedź: {response.text[:1000]}")
-            logger.info("Otrzymano odpowiedź z API - sprawdzam format danych")
+            try:
+                data = response.json()
+                logger.debug(f"Odpowiedź API: {data}")
+                
+                # Zapisujemy całą odpowiedź do pliku dla analizy
+                with open('response.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                    
+                logger.info("Zapisano odpowiedź do pliku response.json")
+                
+            except json.JSONDecodeError:
+                logger.error("Nie można sparsować odpowiedzi JSON")
+                logger.debug(f"Surowa odpowiedź: {response.text[:1000]}")
             
     except Exception as e:
         logger.error(f"Nieoczekiwany błąd: {str(e)}")
