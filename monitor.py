@@ -43,27 +43,29 @@ def send_notification():
 
 def check_availability():
     try:
+        # Używamy API Instakartu
+        api_url = "https://www.instacart.com/store/zara/product/5854004"
+        
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
-            'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+            'User-Agent': 'Instacart/1.0',
+            'Accept': 'application/json',
+            'Origin': 'https://www.instacart.com'
         }
 
-        response = requests.get(URL, headers=headers, timeout=30)
+        response = requests.get(api_url, headers=headers, timeout=30)
         logger.info(f"Status odpowiedzi: {response.status_code}")
 
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            page_text = soup.get_text().upper()
+            data = response.json()
+            sizes = data.get('variants', [])
             
-            # Jeśli nie ma tekstu o braku dostępności, a jest wzmianka o rozmiarze M
-            if "BRAK DOSTĘPNOŚCI" not in page_text and "ROZMIAR M" in page_text:
-                logger.info("Mozliwa dostepnosc rozmiaru M!")
-                send_notification()
-            else:
-                logger.info("Produkt niedostepny lub brak rozmiaru M")
+            for size in sizes:
+                if size.get('size') == 'M' and size.get('available'):
+                    logger.info("Rozmiar M dostepny!")
+                    send_notification()
+                    return
+                    
+            logger.info("Rozmiar M niedostepny")
     except Exception as e:
         logger.error(f"Blad podczas sprawdzania: {e}")
 
