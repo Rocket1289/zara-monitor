@@ -4,15 +4,14 @@ from threading import Thread
 import logging
 import requests
 import os
-import json
+from bs4 import BeautifulSoup
 
 logging.basicConfig(
-    level=logging.DEBUG,  # Zmienione na DEBUG dla lepszego logowania
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-PRODUCT_ID = "05854004"
 URL = "https://www.zara.com/pl/pl/p%C5%82aszcz-o-strukturze-w-jode%C5%82ke-z-we%C5%82na-p05854004.html?v1=402490876"
 NTFY_TOPIC = "zara-monitor-rocket128"
 CHECK_INTERVAL = 600
@@ -30,7 +29,6 @@ def ping():
 
 @app.route('/test_ntfy')
 def test_ntfy():
-    """Endpoint do testowania powiadomień"""
     send_notification(is_available=True)
     return "Notification sent"
 
@@ -49,60 +47,43 @@ def send_notification(is_available=False):
                     "Tags": "shopping_cart"
                 }
             )
-            response.raise_for_status()  # Sprawdza błędy HTTP
+            response.raise_for_status()
             logger.info(f"Status powiadomienia ntfy: {response.status_code}")
     except Exception as e:
         logger.error(f"Błąd wysyłania ntfy: {str(e)}")
 
 def check_availability():
     try:
-        api_url = f"https://www.zara.com/pl/pl/products/{PRODUCT_ID}/stock"
-        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'pl,en-US;q=0.9,en;q=0.8',
-            'Referer': URL,
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+            'Upgrade-Insecure-Requests': '1'
         }
         
-        logger.debug(f"Sprawdzam URL: {api_url}")
-        response = requests.get(api_url, headers=headers, timeout=30)
+        logger.debug(f"Sprawdzam URL: {URL}")
+        response = requests.get(URL, headers=headers, timeout=30)
         logger.info(f"Status odpowiedzi: {response.status_code}")
         
-        # Logujemy nagłówki odpowiedzi
-        logger.debug(f"Otrzymane nagłówki: {dict(response.headers)}")
-        
-        response.raise_for_status()
-        
-        try:
-            data = response.json()
-            # Logujemy całą odpowiedź JSON do analizy
-            logger.debug(f"Odpowiedź API: {json.dumps(data, indent=2)}")
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
             
-            sizes = data.get('sizes', [])
-            if not sizes:
-                logger.warning("Brak informacji o rozmiarach w odpowiedzi")
-                return
-                
-            for size in sizes:
-                # Logujemy każdy rozmiar do analizy
-                logger.debug(f"Sprawdzam rozmiar: {size}")
-                if size.get('name') == 'M' and size.get('availability') == 'in_stock':
-                    logger.info("Rozmiar M dostępny! Wysyłam powiadomienie.")
+            # Logujemy część strony do analizy
+            logger.debug(f"Fragment strony: {response.text[:1000]}")
+            
+            # Sprawdzamy czy rozmiar M jest dostępny
+            # To będziemy musieli dostosować po zobaczeniu faktycznej struktury strony
+            if "BRAK DOSTĘPNOŚCI" not in response.text.upper():
+                text = soup.get_text().upper()
+                if "ROZMIAR M" in text or "SIZE M" in text:
+                    logger.info("Rozmiar M może być dostępny! Wysyłam powiadomienie.")
                     send_notification(is_available=True)
                     return
                     
-            logger.info("Rozmiar M niedostępny")
+            logger.info("Rozmiar M niedostępny lub nie znaleziono informacji")
             
-        except json.JSONDecodeError:
-            logger.error("Nieprawidłowy format JSON w odpowiedzi")
-            logger.debug(f"Treść odpowiedzi: {response.text[:500]}")
-            
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"Błąd HTTP: {e.response.status_code}")
     except requests.exceptions.RequestException as e:
         logger.error(f"Błąd połączenia: {str(e)}")
     except Exception as e:
