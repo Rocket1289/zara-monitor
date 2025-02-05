@@ -49,34 +49,32 @@ def send_notification(is_available=False):
 
 def check_availability():
     try:
-        # Używamy allorigins.win jako proxy
-        proxy_url = f"https://api.allorigins.win/raw?url={URL}"
+        # Używamy API mobilnego Zary
+        api_url = "https://www.zara.com/itxrest/2/catalog/store/24009401/40259520/product/05854004/detail"
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'pl,en-US;q=0.9,en;q=0.8'
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+            'Accept': 'application/json',
+            'Accept-Language': 'pl-PL;q=1.0',
+            'X-Requested-With': 'XMLHttpRequest'
         }
         
-        logger.debug(f"Sprawdzam URL przez proxy: {proxy_url}")
-        response = requests.get(proxy_url, headers=headers, timeout=30)
+        logger.debug(f"Sprawdzam API mobilne: {api_url}")
+        response = requests.get(api_url, headers=headers, timeout=30)
         logger.info(f"Status odpowiedzi: {response.status_code}")
         
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
+            data = response.json()
+            logger.debug(f"Odpowiedź API: {data}")
             
-            # Logujemy fragment strony do analizy
-            logger.debug(f"Fragment strony: {response.text[:1000]}")
-            
-            text = soup.get_text().upper()
-            logger.debug(f"Fragment tekstu: {text[:500]}")
-            
-            # Sprawdzamy dostępność
-            if "BRAK DOSTĘPNOŚCI" not in text and ("ROZMIAR M" in text or "SIZE M" in text):
-                logger.info("Rozmiar M może być dostępny! Wysyłam powiadomienie.")
-                send_notification(is_available=True)
-            else:
-                logger.info("Rozmiar M niedostępny lub nie znaleziono informacji")
+            sizes = data.get('detail', {}).get('sizes', [])
+            for size in sizes:
+                if size.get('name') == 'M' and size.get('availability'):
+                    logger.info("Rozmiar M dostępny! Wysyłam powiadomienie.")
+                    send_notification(is_available=True)
+                    return
+                    
+            logger.info("Rozmiar M niedostępny")
             
     except Exception as e:
         logger.error(f"Nieoczekiwany błąd: {str(e)}")
