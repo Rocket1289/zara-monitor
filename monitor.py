@@ -27,15 +27,15 @@ def ping():
 def send_notification(is_available=False):
     try:
         if is_available:
-            title = "🟢 Płaszcz dostępny!"
+            title = "Płaszcz dostępny!"
             message = f"Rozmiar M jest dostępny!\n{URL}"
         else:
-            title = "🔄 Test monitora"
+            title = "Test monitora"
             message = "Monitor działa prawidłowo"
 
         response = requests.post(
             f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=message,
+            data=message.encode('utf-8'),
             headers={
                 "Title": title,
                 "Priority": "urgent",
