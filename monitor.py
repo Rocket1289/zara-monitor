@@ -49,30 +49,41 @@ def send_notification(is_available=False):
 
 def check_availability():
     try:
-        # Używamy API mobilnego Zary
-        api_url = "https://www.zara.com/itxrest/2/catalog/store/24009401/40259520/product/05854004/detail"
+        # Używamy API wyszukiwania Zary
+        api_url = "https://www.zara.com/itxrest/3/catalog/store/24009401/40259520/search"
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+            'User-Agent': 'Zara/23.2.0 (iPhone; iOS 14.7.1) Version/14.7.1',
             'Accept': 'application/json',
-            'Accept-Language': 'pl-PL;q=1.0',
-            'X-Requested-With': 'XMLHttpRequest'
+            'Accept-Language': 'pl-PL',
+            'X-Client-Release': '23.2.0',
+            'X-Client-Type': 'ios',
+            'X-Client-Country': 'pl'
         }
         
-        logger.debug(f"Sprawdzam API mobilne: {api_url}")
-        response = requests.get(api_url, headers=headers, timeout=30)
+        params = {
+            'query': '05854004',
+            'page': '1',
+            'pageSize': '1'
+        }
+        
+        logger.debug(f"Sprawdzam API wyszukiwania: {api_url}")
+        response = requests.get(api_url, headers=headers, params=params, timeout=30)
         logger.info(f"Status odpowiedzi: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
             logger.debug(f"Odpowiedź API: {data}")
             
-            sizes = data.get('detail', {}).get('sizes', [])
-            for size in sizes:
-                if size.get('name') == 'M' and size.get('availability'):
-                    logger.info("Rozmiar M dostępny! Wysyłam powiadomienie.")
-                    send_notification(is_available=True)
-                    return
+            products = data.get('products', [])
+            if products:
+                product = products[0]
+                sizes = product.get('sizes', [])
+                for size in sizes:
+                    if size.get('name') == 'M' and size.get('availability') == 'IN_STOCK':
+                        logger.info("Rozmiar M dostępny! Wysyłam powiadomienie.")
+                        send_notification(is_available=True)
+                        return
                     
             logger.info("Rozmiar M niedostępny")
             
