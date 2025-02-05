@@ -27,11 +27,6 @@ def ping():
     logger.info("Ping otrzymany")
     return "pong"
 
-@app.route('/test_ntfy')
-def test_ntfy():
-    send_notification(is_available=True)
-    return "Notification sent"
-
 def send_notification(is_available=False):
     try:
         if is_available:
@@ -54,38 +49,35 @@ def send_notification(is_available=False):
 
 def check_availability():
     try:
+        # Używamy allorigins.win jako proxy
+        proxy_url = f"https://api.allorigins.win/raw?url={URL}"
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'pl,en-US;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Accept-Language': 'pl,en-US;q=0.9,en;q=0.8'
         }
         
-        logger.debug(f"Sprawdzam URL: {URL}")
-        response = requests.get(URL, headers=headers, timeout=30)
+        logger.debug(f"Sprawdzam URL przez proxy: {proxy_url}")
+        response = requests.get(proxy_url, headers=headers, timeout=30)
         logger.info(f"Status odpowiedzi: {response.status_code}")
         
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Logujemy część strony do analizy
+            # Logujemy fragment strony do analizy
             logger.debug(f"Fragment strony: {response.text[:1000]}")
             
-            # Sprawdzamy czy rozmiar M jest dostępny
-            # To będziemy musieli dostosować po zobaczeniu faktycznej struktury strony
-            if "BRAK DOSTĘPNOŚCI" not in response.text.upper():
-                text = soup.get_text().upper()
-                if "ROZMIAR M" in text or "SIZE M" in text:
-                    logger.info("Rozmiar M może być dostępny! Wysyłam powiadomienie.")
-                    send_notification(is_available=True)
-                    return
-                    
-            logger.info("Rozmiar M niedostępny lub nie znaleziono informacji")
+            text = soup.get_text().upper()
+            logger.debug(f"Fragment tekstu: {text[:500]}")
             
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Błąd połączenia: {str(e)}")
+            # Sprawdzamy dostępność
+            if "BRAK DOSTĘPNOŚCI" not in text and ("ROZMIAR M" in text or "SIZE M" in text):
+                logger.info("Rozmiar M może być dostępny! Wysyłam powiadomienie.")
+                send_notification(is_available=True)
+            else:
+                logger.info("Rozmiar M niedostępny lub nie znaleziono informacji")
+            
     except Exception as e:
         logger.error(f"Nieoczekiwany błąd: {str(e)}")
 
