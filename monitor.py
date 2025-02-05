@@ -49,44 +49,31 @@ def send_notification(is_available=False):
 
 def check_availability():
     try:
-        # Używamy publicznego API produktowego Zary
-        api_url = "https://www.zara.com/itxrest/2/catalog/store/45109501/40359523/category/0/product/05854004"
+        # Kodujemy URL Zary
+        encoded_url = requests.utils.quote(URL)
+        # Używamy allorigins jako proxy
+        proxy_url = f"https://api.allorigins.win/raw?url={encoded_url}"
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15',
-            'Accept': 'application/json,text/plain',
-            'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Connection': 'keep-alive'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+            'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7'
         }
         
-        logger.debug(f"Sprawdzam nowe API produktu: {api_url}")
-        response = requests.get(
-            api_url, 
-            headers=headers, 
-            timeout=30,
-            allow_redirects=True
-        )
+        logger.debug(f"Sprawdzam przez proxy: {proxy_url}")
+        response = requests.get(proxy_url, headers=headers, timeout=60)  # Zwiększony timeout
         logger.info(f"Status odpowiedzi: {response.status_code}")
-        logger.debug(f"Nagłówki odpowiedzi: {dict(response.headers)}")
         
         if response.status_code == 200:
-            try:
-                data = response.json()
-                logger.debug(f"Odpowiedź API: {data}")
-                
-                # Zapisujemy całą odpowiedź do pliku dla analizy
-                with open('response.json', 'w') as f:
-                    json.dump(data, f, indent=2)
-                    
-                logger.info("Zapisano odpowiedź do pliku response.json")
-                
-            except json.JSONDecodeError:
-                logger.error("Nie można sparsować odpowiedzi JSON")
-                logger.debug(f"Surowa odpowiedź: {response.text[:1000]}")
+            soup = BeautifulSoup(response.text, 'html.parser')
+            text = soup.get_text().upper()
+            logger.debug(f"Fragment tekstu: {text[:500]}")
+            
+            if "BRAK DOSTĘPNOŚCI" not in text:
+                logger.info("Produkt może być dostępny! Wysyłam powiadomienie.")
+                send_notification(is_available=True)
+            else:
+                logger.info("Produkt niedostępny")
             
     except Exception as e:
         logger.error(f"Nieoczekiwany błąd: {str(e)}")
